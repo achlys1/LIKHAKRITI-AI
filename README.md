@@ -1,36 +1,94 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Likhakriti AI
 
-## Getting Started
+> *Anyone can fill the ink of emotions.*
 
-First, run the development server:
+An AI-powered writing, poetry, editing, reflection and personal-expression platform. Likhakriti writes **with** the writer, never for them.
+
+Founder: **Yashraj Sharma (Yash)**. Likhakriti AI is a distinct creative intelligence built around the Likhakriti philosophy — it never claims to be Yash.
+
+---
+
+## Quick start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env      # optional — works offline without it
+npm run dev               # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The app works immediately with **no API key**: an offline heuristic engine handles demos, analysis, RAW/Brutal editing, Poetry Lab, continuation, SEO briefs, etc. It is honest about its limits (e.g. it won't fake a translation). Connect a model provider for full generative quality.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The first account registered becomes **admin** (or set `ADMIN_EMAILS`).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Environment
 
-## Learn More
+| Variable | Purpose |
+|---|---|
+| `AI_PROVIDER` | `openai` (any OpenAI-compatible endpoint: OpenAI, Groq, OpenRouter, Together, Ollama), `anthropic`, or `local` |
+| `AI_MODEL` | model name (defaults: `gpt-4o-mini` / `claude-3-5-haiku-latest`) |
+| `OPENAI_API_KEY`, `OPENAI_BASE_URL` | OpenAI-compatible credentials |
+| `ANTHROPIC_API_KEY` | Anthropic credentials |
+| `IMAGE_PROVIDER=openai` | enable real poem→artwork generation (otherwise a procedural ink/moon SVG is produced) |
+| `AUTH_SECRET` | JWT cookie secret (**set in production**; auto-generated locally into `data/.secret`) |
+| `ADMIN_EMAILS` | comma-separated admin emails |
+| `NEXT_PUBLIC_SITE_URL` | public URL used for share links, sitemap, portfolio |
+| `DATABASE_PATH` | SQLite file (default `data/likhakriti.db`) |
 
-To learn more about Next.js, take a look at the following resources:
+Secrets are never sent to the browser. `.env*` and `data/` are git-ignored.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Official logo (action required)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Place the founder-supplied assets in `public/brand/` — **untouched, no redesign, original aspect ratio**:
 
-## Deploy on Vercel
+```
+public/brand/logo.png         full wordmark for dark backgrounds   (required)
+public/brand/logo-light.png   variant for light backgrounds / PDF   (optional)
+public/brand/symbol.png       standalone symbol → mobile + favicon  (optional)
+public/brand/favicon.ico      favicon (from the symbol if provided)
+public/brand/icon-192.png, icon-512.png   PWA icons
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+`src/components/Logo.tsx` renders these files as-is (no filters, glow or recolouring). Until the files exist, a plain typographic placeholder is shown so the UI never breaks. The logo appears in: header, login/signup, AI Studio, dashboard, about, footer, public post & portfolio pages, PDF exports, loading screen.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Architecture
+
+```
+src/lib/ai/
+  providers.ts     AI Provider abstraction (openai-compatible | anthropic | local)
+  orchestrator.ts  Likhakriti AI Orchestrator → context selection → stream
+  persona.ts       Personality + Task Router → per-engine system prompts
+                   (conversation, writing, poetry, editing, analysis, seo, translation, author, voice)
+  local.ts         Offline heuristic engine (fallback / demo)
+  textstats.ts     Language detection (Hindi/English/Hinglish/bilingual), emotion, imagery, clichés, AI-pattern detection
+src/lib/db.ts      SQLite schema (users, profiles, documents, versions, journal, memories, projects,
+                   voice_profiles, ai_conversations, bookmarks, reports, analytics, ai_usage, settings)
+src/lib/repo.ts    Repositories — every private query is scoped by user_id
+src/lib/auth.ts    Email/password + JWT httpOnly cookie sessions (bcrypt)
+src/lib/voiceLearn.ts  "My Voice" learning from the user's own pages only
+src/lib/export.ts  TXT / MD / DOCX / literary PDF / manuscript PDF (client-side)
+src/app/api/*      REST + streaming AI endpoint (/api/ai), rate-limited
+src/app/*          Pages: home, studio, editor, poetry, lab, journal, journey, voice, dashboard,
+                   portfolio, explore, p/[slug], u/[username] (+ /@username rewrite), author, creator, seo,
+                   settings, admin, about, login/signup/onboarding
+```
+
+Context priority for every AI call: current document → user instruction → voice profile (declared beats learned) → trimmed history.
+
+### Modes
+- **RAW** — minimal touch, shows *Original vs Raw Refined*, leaves notes instead of edits.
+- **LITERARY** — imagery/structure, sophistication from thought not vocabulary.
+- **HUMANIZE** — strips AI-pattern phrasing.
+- **Brutal Honesty**, **First Reader**, **Why this line works**, **Keep my imperfections** toggle.
+- Suggestions always render as *Original / Suggestion / Why* with **Accept / Reject / Try again** — nothing is silently replaced; accepted edits snapshot the previous version.
+
+## Production notes
+- Set `AUTH_SECRET`, `NEXT_PUBLIC_SITE_URL`, a provider key, and `ADMIN_EMAILS`.
+- SQLite is fine for a single node; for multi-instance deploys swap `src/lib/db.ts` for Postgres (the repo layer only uses `prepare().run/get/all`).
+- OAuth (Google etc.): the session layer is provider-agnostic — add a callback route that creates/finds the user by email and calls `createSession(userId)`.
+- Rate limiting is in-memory; move to Redis for multiple instances.
+- Plans (Free / Creator / Pro / Studio) exist as configuration in the admin dashboard — no prices are set and nothing is paywalled.
+
+## Scripts
+`npm run dev` · `npm run build` · `npm start` · `npm run lint`
+
+~Likhakriti
