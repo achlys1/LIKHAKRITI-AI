@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function NotFound() { return <main className="min-h-[70vh] flex flex-col items-center justify-center text-center px-4"><p className="eyebrow">404</p><h1 className="mt-3 text-4xl">This page hasn&apos;t been written yet.</h1><p className="text-ink-3 mt-2">Maybe it&apos;s waiting for you.</p><Link href="/" className="btn btn-ghost mt-6">Go home</Link></main>; }
