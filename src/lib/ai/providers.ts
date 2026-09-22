@@ -1,6 +1,7 @@
 /**
  * Provider abstraction. Swap providers via AI_PROVIDER env.
- *  - openai    : any OpenAI-compatible chat completions endpoint (OpenAI, Groq, OpenRouter, Together, Ollama…)
+ *  - openrouter: OpenRouter (default model "openrouter/free" — routes to free models; no paid key needed)
+ *  - openai    : any OpenAI-compatible chat completions endpoint (OpenAI, Groq, Together, Ollama…)
  *  - anthropic : Anthropic Messages API
  *  - local     : offline heuristic engine (no key; used for demo / fallback)
  */
@@ -28,20 +29,29 @@ async function* sseLines(res: Response, signal?: AbortSignal) {
   }
 }
 
-function openAICompatible(): AIProvider {
-  const base = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
-  const model = process.env.AI_MODEL || "gpt-4o-mini";
+/** Thrown for errors where falling back to the local engine makes sense (rate limit, quota, upstream down). */
+export class ProviderError extends Error {
+  constructor(message: string, public status: number, public retryable: boolean) { super(message); }
+}
+
+function openAICompatible(cfg: { name: string; base: string; key: string; model: string; extraHeaders?: Record<string, string>; extraBody?: Record<string, unknown> }): AIProvider {
+  const { name, base, key, model } = cfg;
   return {
-    name: "openai",
+    name,
     model,
     async *stream(messages, { temperature = 0.8, maxTokens = 1400, signal }) {
       const res = await fetch(`${base}/chat/completions`, {
         method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-        body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens, stream: true }),
+        headers: { "content-type": "application/json", authorization: `Bearer ${key}`, ...(cfg.extraHeaders || {}) },
+        body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens, stream: true, ...(cfg.extraBody || {}) }),
         signal,
       });
-      if (!res.ok || !res.body) throw new Error(`provider ${res.status}: ${(await res.text()).slice(0, 300)}`);
+      if (!res.ok || !res.body) {
+        const text = (await res.text().catch(() => "")).slice(0, 300);
+        // 402 = credits exhausted, 429 = rate/free limit, 5xx/408/409 = upstream trouble → retryable (fall back to local)
+        const retryable = res.status === 402 || res.status === 429 || res.status === 408 || res.status === 409 || res.status >= 500;
+        throw new ProviderError(`${name} ${res.status}: ${text}`, res.status, retryable);
+      }
       for await (const data of sseLines(res, signal)) {
         try { const j = JSON.parse(data); const d = j.choices?.[0]?.delta?.content; if (d) yield d as string; } catch { /* ignore keepalives */ }
       }
@@ -63,13 +73,34 @@ function anthropic(): AIProvider {
         body: JSON.stringify({ model, system, messages: rest, temperature, max_tokens: maxTokens, stream: true }),
         signal,
       });
-      if (!res.ok || !res.body) throw new Error(`provider ${res.status}: ${(await res.text()).slice(0, 300)}`);
+      if (!res.ok || !res.body) { const t = (await res.text().catch(() => "")).slice(0, 300); throw new ProviderError(`anthropic ${res.status}: ${t}`, res.status, res.status === 429 || res.status >= 500); }
       for await (const data of sseLines(res, signal)) {
         try { const j = JSON.parse(data); if (j.type === "content_block_delta" && j.delta?.text) yield j.delta.text as string; } catch { /* ignore */ }
       }
     },
   };
 }
+
+function openRouter(): AIProvider {
+  const model = process.env.AI_MODEL || "openrouter/free";
+  const site = process.env.NEXT_PUBLIC_SITE_URL || "https://likhakriti.app";
+  return openAICompatible({
+    name: "openrouter",
+    base: "https://openrouter.ai/api/v1",
+    key: process.env.OPENROUTER_API_KEY || "",
+    model,
+    // OpenRouter attributes usage to the app; these headers are optional but recommended.
+    extraHeaders: { "HTTP-Referer": site, "X-Title": "Likhakriti AI" },
+    // Optional ordered fallback list of free models, e.g. "meta-llama/llama-3.3-70b-instruct:free,google/gemma-3-27b-it:free"
+    extraBody: process.env.OPENROUTER_FALLBACK_MODELS ? { models: process.env.OPENROUTER_FALLBACK_MODELS.split(",").map((m) => m.trim()).filter(Boolean) } : undefined,
+  });
+}
+
+function openAI(): AIProvider {
+  return openAICompatible({ name: "openai", base: (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, ""), key: process.env.OPENAI_API_KEY || "", model: process.env.AI_MODEL || "gpt-4o-mini" });
+}
+
+export function localProvider(): AIProvider { return local(); }
 
 function local(): AIProvider {
   return {
@@ -90,10 +121,12 @@ function local(): AIProvider {
 
 export function getProvider(): AIProvider {
   const p = (process.env.AI_PROVIDER || "").toLowerCase();
-  if (p === "openai" && process.env.OPENAI_API_KEY) return openAICompatible();
+  if (p === "openrouter" && process.env.OPENROUTER_API_KEY) return openRouter();
+  if (p === "openai" && process.env.OPENAI_API_KEY) return openAI();
   if (p === "anthropic" && process.env.ANTHROPIC_API_KEY) return anthropic();
-  if (!p || p === "local") {
-    if (process.env.OPENAI_API_KEY) return openAICompatible();
+  if (!p || p === "local" || p === "auto") {
+    if (process.env.OPENROUTER_API_KEY) return openRouter();
+    if (process.env.OPENAI_API_KEY) return openAI();
     if (process.env.ANTHROPIC_API_KEY) return anthropic();
   }
   return local();

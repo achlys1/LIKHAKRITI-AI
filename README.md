@@ -16,7 +16,7 @@ cp .env.example .env      # optional — works offline without it
 npm run dev               # http://localhost:3000
 ```
 
-The app works immediately with **no API key**: an offline heuristic engine handles demos, analysis, RAW/Brutal editing, Poetry Lab, continuation, SEO briefs, etc. It is honest about its limits (e.g. it won't fake a translation). Connect a model provider for full generative quality.
+The app works immediately with **no API key**: an offline heuristic engine handles demos, analysis, RAW/Brutal editing, Poetry Lab, continuation, SEO briefs, etc. It is honest about its limits (e.g. it won't fake a translation). Connect a model provider for full generative quality — the default is **OpenRouter's free router** (`openrouter/free`), which needs only a free key. If the remote provider errors, rate-limits, or the free quota runs out, requests **fall back to the local engine automatically** (logged as `ai_fallback` in the admin dashboard).
 
 The first account registered becomes **admin** (or set `ADMIN_EMAILS`).
 
@@ -24,8 +24,10 @@ The first account registered becomes **admin** (or set `ADMIN_EMAILS`).
 
 | Variable | Purpose |
 |---|---|
-| `AI_PROVIDER` | `openai` (any OpenAI-compatible endpoint: OpenAI, Groq, OpenRouter, Together, Ollama), `anthropic`, or `local` |
-| `AI_MODEL` | model name (defaults: `gpt-4o-mini` / `claude-3-5-haiku-latest`) |
+| `AI_PROVIDER` | `openrouter` (default, free), `openai` (any OpenAI-compatible endpoint), `anthropic`, or `local` |
+| `OPENROUTER_API_KEY` | free key from openrouter.ai/keys |
+| `AI_MODEL` | `openrouter/free` (default) or a pinned model like `meta-llama/llama-3.3-70b-instruct:free` |
+| `OPENROUTER_FALLBACK_MODELS` | optional comma-separated models OpenRouter tries before we drop to local |
 | `OPENAI_API_KEY`, `OPENAI_BASE_URL` | OpenAI-compatible credentials |
 | `ANTHROPIC_API_KEY` | Anthropic credentials |
 | `IMAGE_PROVIDER=openai` | enable real poem→artwork generation (otherwise a procedural ink/moon SVG is produced) |
@@ -55,7 +57,7 @@ public/brand/icon-192.png, icon-512.png   PWA icons
 
 ```
 src/lib/ai/
-  providers.ts     AI Provider abstraction (openai-compatible | anthropic | local)
+  providers.ts     AI Provider abstraction (openrouter | openai-compatible | anthropic | local) + fallback-to-local
   orchestrator.ts  Likhakriti AI Orchestrator → context selection → stream
   persona.ts       Personality + Task Router → per-engine system prompts
                    (conversation, writing, poetry, editing, analysis, seo, translation, author, voice)
@@ -86,7 +88,7 @@ Context priority for every AI call: current document → user instruction → vo
 
 1. **Database** — create a free Turso DB: `turso db create likhakriti && turso db show likhakriti --url && turso db tokens create likhakriti` (or via turso.tech dashboard). Tables are created automatically on first request.
 2. **Import the repo** at vercel.com/new (branch `arena/01a0c5c1-likhakriti-ai` or `main` after merge). Framework is auto-detected; `vercel.json` sets the Mumbai region and a 60 s limit for the streaming AI route.
-3. **Environment variables** (Production): `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `AUTH_SECRET` (e.g. `openssl rand -hex 32`), `AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `AI_MODEL=claude-3-5-haiku-latest` (or a Sonnet model), `ADMIN_EMAILS`, `NEXT_PUBLIC_SITE_URL=https://<your-domain>`.
+3. **Environment variables** (Production): `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `AUTH_SECRET` (e.g. `openssl rand -hex 32`), `AI_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, `AI_MODEL=openrouter/free`, `ADMIN_EMAILS`, `NEXT_PUBLIC_SITE_URL=https://<your-domain>`.
 4. Deploy. Register your account first — it becomes admin.
 
 ## Production notes

@@ -3,7 +3,7 @@
  *   AI Provider → Orchestrator → Task Router → Engine prompt → stream
  * Context selection: current document > user instructions > voice profile > history (trimmed).
  */
-import { getProvider } from "./providers";
+import { getProvider, localProvider, ProviderError } from "./providers";
 import { buildSystemPrompt, buildUserMessage, ENGINE_FOR_TASK } from "./persona";
 import type { AIRequest, ChatMessage } from "./types";
 import { logUsage, track } from "../repo";
@@ -38,18 +38,32 @@ export async function* runAI(req: AIRequest, signal?: AbortSignal): AsyncGenerat
   const tokensIn = Math.round(messages.reduce((n, m) => n + m.content.length, 0) / 4);
   let out = 0;
   const temp = req.task === "analyze" || req.task === "why" || req.task === "seo" || req.task === "refine" ? 0.5 : req.task === "poem" || req.task === "lab" || req.task === "write" ? 0.9 : 0.75;
+  const attempt = async function* (p: typeof provider) {
+    for await (const chunk of p.stream(messages, { temperature: temp, signal })) { out += chunk.length; yield chunk; }
+  };
   try {
-    for await (const chunk of provider.stream(messages, { temperature: temp, signal })) {
-      out += chunk.length;
-      yield chunk;
+    try {
+      yield* attempt(provider);
+      logUsage({ userId: req.userId, task: req.task, engine, provider: provider.name, tokensIn, tokensOut: Math.round(out / 4), ok: true });
+      track("ai_request", req.userId, { task: req.task, engine, provider: provider.name, mode: req.options?.mode });
+    } catch (e) {
+      if (signal?.aborted) return;
+      const err = e instanceof Error ? e.message : String(e);
+      console.error("[likhakriti-ai]", req.task, provider.name, err);
+      logUsage({ userId: req.userId, task: req.task, engine, provider: provider.name, tokensIn, ok: false, error: err.slice(0, 300) });
+      // Fall back to the offline engine when the remote provider failed before producing output
+      // (rate limit / free quota exhausted / upstream down / network error). Never fall back mid-stream.
+      const canFallback = provider.name !== "local" && out === 0 && (!(e instanceof ProviderError) || e.retryable || e.status === 401 || e.status === 403 || e.status === 404);
+      if (!canFallback) throw e;
+      const local = localProvider();
+      console.warn("[likhakriti-ai] falling back to local engine for", req.task);
+      yield* attempt(local);
+      logUsage({ userId: req.userId, task: req.task, engine, provider: "local(fallback)", tokensIn, tokensOut: Math.round(out / 4), ok: true });
+      track("ai_fallback", req.userId, { task: req.task, from: provider.name, reason: err.slice(0, 80) });
     }
-    logUsage({ userId: req.userId, task: req.task, engine, provider: provider.name, tokensIn, tokensOut: Math.round(out / 4), ok: true });
-    track("ai_request", req.userId, { task: req.task, engine, provider: provider.name, mode: req.options?.mode });
   } catch (e) {
-    const err = e instanceof Error ? e.message : String(e);
-    console.error("[likhakriti-ai]", req.task, provider.name, err);
-    logUsage({ userId: req.userId, task: req.task, engine, provider: provider.name, tokensIn, ok: false, error: err.slice(0, 300) });
     if (signal?.aborted) return;
+    console.error("[likhakriti-ai] unrecoverable", req.task, e);
     throw new Error("Something interrupted the ink. Try again.");
   }
 }
