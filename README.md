@@ -35,6 +35,7 @@ The first account registered becomes **admin** (or set `ADMIN_EMAILS`).
 | `ADMIN_EMAILS` | comma-separated admin emails |
 | `NEXT_PUBLIC_SITE_URL` | public URL used for share links, sitemap, canonical URLs |
 | `NEXT_PUBLIC_GA_ID` | GA4 measurement id (e.g. `G-XXXXXXXXXX`) — enables Google Analytics; leave empty to disable |
+| `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | Google Search Console meta tag verification token |
 | `DATABASE_PATH` | local libSQL file (default `data/likhakriti.db`) |
 | `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` | production database (Turso) — required on Vercel |
 

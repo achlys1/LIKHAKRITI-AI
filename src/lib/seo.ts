@@ -17,6 +17,10 @@ export const siteConfig = {
   siteUrl: rawSiteUrl.replace(/\/+$/, ""),
   /** GA4 measurement id from NEXT_PUBLIC_GA_ID. Empty string = analytics off. */
   gaId: (process.env.NEXT_PUBLIC_GA_ID || "").trim(),
+  /** Google Search Console verification token for <meta name="google-site-verification" content="..."> */
+  googleSiteVerification: (
+    process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || "dWFqMfFtQ_Z_ke6qxlnD39mzxsFRKgvd7ztusYaBCWU"
+  ).trim(),
   /** Default share image (public/og.png, 1200×630). */
   ogImage: "/og.png",
   defaultTitle: "Likhakriti AI — Give your thoughts an ink.",

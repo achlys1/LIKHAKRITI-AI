@@ -54,6 +54,7 @@ export const metadata: Metadata = {
     images: [siteConfig.ogImage],
   },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 } },
+  verification: siteConfig.googleSiteVerification ? { google: siteConfig.googleSiteVerification } : undefined,
   icons: { icon: "/brand/favicon.ico" },
 };
 export const viewport: Viewport = { themeColor: "#07090f", width: "device-width", initialScale: 1, viewportFit: "cover" };
