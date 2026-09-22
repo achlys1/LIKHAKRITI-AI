@@ -1,7 +1,14 @@
+import type { Metadata } from "next";
 import Logo from "@/components/Logo";
 import Footer from "@/components/Footer";
 import Link from "next/link";
-export const metadata = { title: "About" };
+import { url } from "@/lib/seo";
+
+export const metadata: Metadata = {
+  title: "About",
+  description: "Likhakriti writes with the writer, never for the writer — the belief, the philosophy and the person behind it.",
+  alternates: { canonical: url("/about") },
+};
 export default function About() {
   return (
     <main>

@@ -1,32 +1,11 @@
-"use client";
-import { useEffect, useState } from "react";
-import Gate from "@/components/Gate";
-import { useApp } from "@/components/Providers";
-type Data = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-export default function Admin() {
-  const { user, toast } = useApp(); const [d, setD] = useState<Data | null>(null); const [err, setErr] = useState<string | null>(null); const [tab, setTab] = useState("overview");
-  const load = () => fetch("/api/admin").then(async (r) => { const j = await r.json(); if (!r.ok) setErr(j.error); else setD(j); });
-  useEffect(() => { if (user) load(); }, [user]);
-  const act = async (b: Record<string, unknown>) => { await fetch("/api/admin", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b) }); toast("Done."); load(); };
-  if (err) return <main className="p-20 text-center"><h1 className="text-3xl">This door is for admins.</h1><p className="text-ink-3 mt-2">Set ADMIN_EMAILS in .env, or the first registered account is admin.</p></main>;
-  if (!d) return <Gate><div className="p-10 text-ink-3">Loading…</div></Gate>;
-  const c = d.counts;
-  return (
-    <Gate>
-      <main className="mx-auto max-w-6xl px-4 md:px-6 py-10">
-        <div className="eyebrow">Admin</div><h1 className="mt-2 text-4xl">System</h1>
-        <div className="mt-5 flex flex-wrap gap-1.5">{["overview", "users", "content", "reports", "ai", "features", "plans"].map((t) => <button key={t} onClick={() => setTab(t)} className={`chip ${tab === t ? "chip-on" : ""}`}>{t}</button>)}</div>
-        {tab === "overview" && <><div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">{[["Users", c.users], ["Active 24h", c.activeDay], ["Active 7d", c.activeWeek], ["Documents", c.documents], ["Poems", c.poems], ["Published", c.published], ["Journal entries", c.journalEntries], ["AI requests", c.aiRequests], ["AI errors", c.aiErrors], ["Tokens in (est.)", c.tokensIn], ["Tokens out (est.)", c.tokensOut]].map(([l, v]) => <div key={l as string} className="card p-4"><div className="label !mb-0">{l}</div><div className="serif text-3xl">{Number(v).toLocaleString()}</div></div>)}</div>
-          <div className="card p-4 mt-4 text-sm"><div className="label">Health</div>DB: {d.health.db} · Provider: {d.health.provider.provider} ({d.health.provider.model}) {d.health.provider.live ? "live" : "offline heuristic"} · Uptime {Math.round(d.health.uptime / 60)} min · RSS {d.health.memoryMB} MB</div>
-          <div className="card p-4 mt-4 text-sm"><div className="label">Events (7d)</div><div className="flex flex-wrap gap-2">{d.events.map((e: { event: string; n: number }) => <span key={e.event} className="chip">{e.event} · {e.n}</span>)}</div></div></>}
-        {tab === "users" && <table className="mt-6 w-full text-sm"><thead><tr className="text-left text-ink-3"><th className="py-2">Email</th><th>Username</th><th>Role</th><th>Plan</th><th>Joined</th></tr></thead><tbody>{d.users.map((u: Data) => <tr key={u.id} className="border-t hairline"><td className="py-2">{u.email}</td><td>@{u.username}</td><td><select className="bg-transparent" value={u.role} onChange={(e) => act({ action: "setRole", id: u.id, role: e.target.value })}><option>user</option><option>admin</option></select></td><td><select className="bg-transparent" value={u.plan} onChange={(e) => act({ action: "setPlan", id: u.id, plan: e.target.value })}>{Object.keys(d.plans).map((p) => <option key={p}>{p}</option>)}</select></td><td className="text-ink-3">{new Date(u.created_at).toLocaleDateString()}</td></tr>)}</tbody></table>}
-        {tab === "content" && <ul className="mt-6 space-y-2 text-sm">{d.published.map((p: Data) => <li key={p.id} className="card p-3 flex items-center gap-3"><a href={`/p/${p.slug}`} className="flex-1 hover:text-gold">{p.title || "Untitled"} <span className="text-ink-3">· {p.kind} · {p.language} · @{p.username}</span></a><button onClick={() => act({ action: "unpublish", id: p.id })} className="btn btn-ghost btn-sm">Unpublish</button></li>)}{!d.published.length && <li className="text-ink-3">Nothing published yet.</li>}</ul>}
-        {tab === "reports" && <ul className="mt-6 space-y-2 text-sm">{d.reports.map((r: Data) => <li key={r.id} className="card p-3"><div className="flex items-center gap-3"><a href={`/p/${r.slug}`} className="hover:text-gold">{r.title || r.document_id}</a><span className="chip">{r.status}</span><span className="ml-auto flex gap-2">{r.status === "open" && <><button onClick={() => act({ action: "unpublish", id: r.document_id })} className="btn btn-ghost btn-sm">Unpublish</button><button onClick={() => act({ action: "resolveReport", id: r.id })} className="btn btn-ghost btn-sm">Resolve</button></>}</span></div><p className="text-ink-3 mt-1">{r.reason}</p></li>)}{!d.reports.length && <li className="text-ink-3">No reports. Quiet is good.</li>}</ul>}
-        {tab === "ai" && <><table className="mt-6 w-full text-sm"><thead><tr className="text-left text-ink-3"><th className="py-2">Task</th><th>Requests</th><th>Errors</th></tr></thead><tbody>{d.usageByTask.map((u: Data) => <tr key={u.task} className="border-t hairline"><td className="py-2">{u.task}</td><td>{u.n}</td><td>{u.errors}</td></tr>)}</tbody></table><div className="label mt-8">Recent errors</div><ul className="text-xs space-y-1">{d.recentErrors.map((e: Data, i: number) => <li key={i} className="text-ink-3">{new Date(e.created_at).toLocaleString()} · {e.task} · {e.provider} · {e.error}</li>)}{!d.recentErrors.length && <li className="text-ink-3">None.</li>}</ul></>}
-        {tab === "features" && <div className="mt-6 card p-4 space-y-2">{Object.entries(d.features).map(([k, v]) => <label key={k} className="flex items-center gap-3 text-sm"><input type="checkbox" checked={!!v} onChange={(e) => act({ action: "features", features: { ...d.features, [k]: e.target.checked } })} /> {k}</label>)}</div>}
-        {tab === "plans" && <div className="mt-6 grid sm:grid-cols-2 gap-3">{Object.entries(d.plans).map(([k, v]: [string, any]) => <div key={k} className="card p-4 space-y-2 text-sm"><div className="serif text-xl">{v.label} <span className="text-xs text-ink-3">({k})</span></div><label className="block"><span className="label">Price (leave blank = not set)</span><input className="input" defaultValue={v.price ?? ""} onBlur={(e) => act({ action: "plans", plans: { ...d.plans, [k]: { ...v, price: e.target.value || null } } })} /></label><label className="block"><span className="label">AI requests / day (-1 = unlimited)</span><input className="input" type="number" defaultValue={v.limits?.aiPerDay} onBlur={(e) => act({ action: "plans", plans: { ...d.plans, [k]: { ...v, limits: { ...v.limits, aiPerDay: +e.target.value } } } })} /></label></div>)}</div>} {/* eslint-disable-line @typescript-eslint/no-explicit-any */}
-        <p className="text-xs text-ink-3 mt-10">Private journal entries and private pages are never listed here.</p>
-      </main>
-    </Gate>
-  );
+import type { Metadata } from "next";
+import AdminClient from "@/components/AdminClient";
+
+export const metadata: Metadata = {
+  title: "Admin",
+  robots: { index: false, follow: true },
+};
+
+export default function AdminPage() {
+  return <AdminClient />;
 }
