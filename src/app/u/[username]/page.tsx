@@ -3,17 +3,50 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { get } from "@/lib/db";
 import { docs } from "@/lib/repo";
+import { siteConfig, url } from "@/lib/seo";
 import Logo from "@/components/Logo";
+import JsonLd from "@/components/JsonLd";
 export const dynamic = "force-dynamic";
 type P = { params: Promise<{ username: string }> };
-function load(username: string) { return get<{ user_id: string; username: string; display_name: string; bio: string; avatar_url: string; links_json: string; created_at: number }>("SELECT p.*, u.created_at FROM profiles p JOIN users u ON u.id=p.user_id WHERE p.username = ? AND p.is_public = 1", [username.replace(/^@/, "")]); }
-export async function generateMetadata({ params }: P): Promise<Metadata> { const { username } = await params; const p = await load(username); if (!p) notFound(); return { title: `${p.display_name || p.username} (@${p.username})`, description: p.bio || undefined }; }
+type Prof = { user_id: string; username: string; display_name: string; bio: string; avatar_url: string; links_json: string; created_at: number };
+function load(username: string) { return get<Prof>("SELECT p.*, u.created_at FROM profiles p JOIN users u ON u.id=p.user_id WHERE p.username = ? AND p.is_public = 1", [username.replace(/^@/, "")]); }
+function personSchema(p: Prof): Record<string, unknown> {
+  const name = p.display_name || p.username;
+  const links = Object.values(JSON.parse(p.links_json || "{}") as Record<string, string>).filter(Boolean);
+  return {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    name,
+    url: url(`/u/${p.username}`),
+    ...(p.bio ? { description: p.bio } : {}),
+    ...(links.length ? { sameAs: links } : {}),
+  };
+}
+export async function generateMetadata({ params }: P): Promise<Metadata> {
+  const { username } = await params; const p = await load(username); if (!p) notFound();
+  const name = p.display_name || p.username;
+  const canonical = url(`/u/${p.username}`);
+  return {
+    title: `${name} (@${p.username})`,
+    description: p.bio || `Public portfolio of ${name} on Likhakriti — poems, stories, essays and more.`,
+    alternates: { canonical },
+    openGraph: {
+      type: "profile",
+      title: `${name} (@${p.username})`,
+      description: p.bio || undefined,
+      url: canonical,
+      images: p.avatar_url ? [p.avatar_url] : [siteConfig.ogImage],
+    },
+  };
+}
 export default async function Portfolio({ params }: P) {
   const { username } = await params; const p = await load(username); if (!p) notFound();
   const works = await docs.publicByUser(p.user_id); const links = JSON.parse(p.links_json || "{}") as Record<string, string>;
   const words = works.reduce((n, d) => n + d.word_count, 0); const featured = works[0];
   const byKind = (k: string[]) => works.filter((w) => k.includes(w.kind));
   return (
+    <>
+    <JsonLd data={personSchema(p)} />
     <main className="min-h-dvh">
       <header className="mx-auto max-w-4xl px-4 py-6 flex items-center justify-between"><Logo size={24} /><Link href="/explore" className="text-sm text-ink-3 hover:text-gold">Explore</Link></header>
       <section className="mx-auto max-w-4xl px-4 pt-6 pb-24">
@@ -26,5 +59,6 @@ export default async function Portfolio({ params }: P) {
         <p className="mt-16 text-xs text-ink-3">Portfolio on Likhakriti · <Link href="/" className="hover:text-gold">likhakriti</Link></p>
       </section>
     </main>
+    </>
   );
 }

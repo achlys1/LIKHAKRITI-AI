@@ -1,2 +1,17 @@
 import type { MetadataRoute } from "next";
-export default function robots(): MetadataRoute.Robots { const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"; return { rules: [{ userAgent: "*", allow: "/", disallow: ["/api/", "/admin", "/journal", "/dashboard", "/settings", "/voice"] }], sitemap: `${base}/sitemap.xml` }; }
+import { siteConfig } from "@/lib/seo";
+
+/**
+ * Public site only. Private/app routes are BOTH noindexed in their page
+ * metadata and disallowed here so crawlers never fetch user content.
+ */
+export default function robots(): MetadataRoute.Robots {
+  return {
+    rules: {
+      userAgent: "*",
+      allow: "/",
+      disallow: ["/api/", "/_next/", "/admin", "/author", "/dashboard", "/editor", "/journal", "/journey", "/login", "/onboarding", "/portfolio", "/settings", "/signup", "/voice"],
+    },
+    sitemap: `${siteConfig.siteUrl}/sitemap.xml`,
+  };
+}

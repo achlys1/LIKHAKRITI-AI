@@ -1,6 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Feather, Sparkles, NotebookPen, FlaskConical, BookOpen, Mic } from "lucide-react";
-export const metadata = { title: "Write" };
+import { url } from "@/lib/seo";
+
+export const metadata: Metadata = {
+  title: "Write",
+  description: "Start writing — a blank page, a poem, a studio conversation, the Poetry Lab or the long work. Your voice, sharpened, never replaced.",
+  alternates: { canonical: url("/write") },
+};
 const P = [
   { h: "/editor", i: NotebookPen, t: "Open a blank page", d: "Distraction-free editor with autosave, versions, and Likhakriti beside you." },
   { h: "/poetry", i: Feather, t: "Write a poem", d: "Hindi · English · Hinglish. Free verse to ghazal-inspired. Rhyme only if you want it." },

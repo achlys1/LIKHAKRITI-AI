@@ -33,7 +33,8 @@ The first account registered becomes **admin** (or set `ADMIN_EMAILS`).
 | `IMAGE_PROVIDER=openai` | enable real poem→artwork generation (otherwise a procedural ink/moon SVG is produced) |
 | `AUTH_SECRET` | JWT cookie secret (**set in production**; auto-generated locally into `data/.secret`) |
 | `ADMIN_EMAILS` | comma-separated admin emails |
-| `NEXT_PUBLIC_SITE_URL` | public URL used for share links, sitemap, portfolio |
+| `NEXT_PUBLIC_SITE_URL` | public URL used for share links, sitemap, canonical URLs |
+| `NEXT_PUBLIC_GA_ID` | GA4 measurement id (e.g. `G-XXXXXXXXXX`) — enables Google Analytics; leave empty to disable |
 | `DATABASE_PATH` | local libSQL file (default `data/likhakriti.db`) |
 | `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` | production database (Turso) — required on Vercel |
 
@@ -84,11 +85,20 @@ Context priority for every AI call: current document → user instruction → vo
 - **Brutal Honesty**, **First Reader**, **Why this line works**, **Keep my imperfections** toggle.
 - Suggestions always render as *Original / Suggestion / Why* with **Accept / Reject / Try again** — nothing is silently replaced; accepted edits snapshot the previous version.
 
+## SEO, analytics & search
+
+- **Metadata** — every public page has a title, description, canonical URL and Open Graph/Twitter card; the root layout adds site-wide Open Graph (default image `public/og.png`) and JSON-LD (`Organization` + `WebSite`).
+- **JSON-LD** — published pieces (`/p/…`) emit `CreativeWork` schema; public portfolios (`/u/…`) emit `Person` schema.
+- **Indexing rules** — public pages are indexable; private/app pages (`/dashboard`, `/journal`, `/journey`, `/voice`, `/settings`, `/portfolio`, `/author`, `/admin`, `/editor`, `/onboarding`, `/login`, `/signup`) are `noindex` *and* disallowed in `robots.txt`, so crawlers never see user content.
+- **Sitemap** — `src/app/sitemap.ts` lists public pages, every published piece and every public portfolio.
+- **Google Search Console** — the site-verification file is served at `/google522c2bc96604d69a.html` (from `public/google522c2bc96604d69a.html`).
+- **GA4** — set `NEXT_PUBLIC_GA_ID` as a **build** environment variable (e.g. on Vercel); `src/components/GA4.tsx` server-renders the gtag scripts into `<head>` on every page (no client-only injection, so the tags exist in the production HTML).
+
 ## Deploy to Vercel
 
 1. **Database** — create a free Turso DB: `turso db create likhakriti && turso db show likhakriti --url && turso db tokens create likhakriti` (or via turso.tech dashboard). Tables are created automatically on first request.
 2. **Import the repo** at vercel.com/new (branch `arena/01a0c5c1-likhakriti-ai` or `main` after merge). Framework is auto-detected; `vercel.json` sets the Mumbai region and a 60 s limit for the streaming AI route.
-3. **Environment variables** (Production): `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `AUTH_SECRET` (e.g. `openssl rand -hex 32`), `AI_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, `AI_MODEL=openrouter/free`, `ADMIN_EMAILS`, `NEXT_PUBLIC_SITE_URL=https://<your-domain>`.
+3. **Environment variables** (Production): `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `AUTH_SECRET` (e.g. `openssl rand -hex 32`), `AI_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, `AI_MODEL=openrouter/free`, `ADMIN_EMAILS`, `NEXT_PUBLIC_SITE_URL=https://<your-domain>`, `NEXT_PUBLIC_GA_ID` (optional, GA4).
 4. Deploy. Register your account first — it becomes admin.
 
 ## Production notes
