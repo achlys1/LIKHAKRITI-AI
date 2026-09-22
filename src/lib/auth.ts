@@ -3,7 +3,7 @@ import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import fs from "node:fs";
 import path from "node:path";
-import { getDb, id, now } from "./db";
+import { get, run, id, now } from "./db";
 
 const COOKIE = "lk_session";
 
@@ -45,9 +45,9 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     if (!token) return null;
     const { payload } = await jwtVerify(token, secret());
     const uid = payload.uid as string;
-    const row = getDb().prepare(`SELECT u.id,u.email,u.role,u.plan,p.username,p.display_name,p.onboarding_json FROM users u LEFT JOIN profiles p ON p.user_id=u.id WHERE u.id = ?`).get(uid) as (SessionUser & { onboarding_json: string }) | undefined;
+    const row = await get<SessionUser & { onboarding_json: string }>(`SELECT u.id,u.email,u.role,u.plan,p.username,p.display_name,p.onboarding_json FROM users u LEFT JOIN profiles p ON p.user_id=u.id WHERE u.id = ?`, [uid]);
     if (!row) return null;
-    getDb().prepare("UPDATE users SET last_seen_at = ? WHERE id = ?").run(now(), uid);
+    run("UPDATE users SET last_seen_at = ? WHERE id = ?", [now(), uid]).catch(() => {});
     const role = isAdminEmail(row.email) ? "admin" : row.role;
     return { id: row.id, email: row.email, role, plan: row.plan, username: row.username, display_name: row.display_name, onboarded: !!row.onboarding_json && row.onboarding_json !== "{}" };
   } catch {
@@ -63,22 +63,22 @@ export async function requireUser() {
 export class AuthError extends Error { status = 401; constructor() { super("Sign in to continue."); } }
 
 export async function registerUser(email: string, password: string, displayName?: string) {
-  const db = getDb();
   email = email.trim().toLowerCase();
-  if (db.prepare("SELECT 1 FROM users WHERE email = ?").get(email)) throw new Error("That email already has an account. Try signing in.");
+  if (await get("SELECT 1 as x FROM users WHERE email = ?", [email])) throw new Error("That email already has an account. Try signing in.");
   const uid = id("usr_");
   const hash = await bcrypt.hash(password, 10);
-  const role = isAdminEmail(email) ? "admin" : (db.prepare("SELECT COUNT(*) as c FROM users").get() as { c: number }).c === 0 ? "admin" : "user";
-  db.prepare("INSERT INTO users (id,email,password_hash,provider,role,plan,created_at,last_seen_at) VALUES (?,?,?,?,?,?,?,?)").run(uid, email, hash, "email", role, "free", now(), now());
+  const count = Number((await get<{ c: number }>("SELECT COUNT(*) as c FROM users"))?.c ?? 0);
+  const role = isAdminEmail(email) ? "admin" : count === 0 ? "admin" : "user";
+  await run("INSERT INTO users (id,email,password_hash,provider,role,plan,created_at,last_seen_at) VALUES (?,?,?,?,?,?,?,?)", [uid, email, hash, "email", role, "free", now(), now()]);
   const base = (displayName || email.split("@")[0]).toLowerCase().replace(/[^a-z0-9_]+/g, "").slice(0, 20) || "writer";
   let username = base; let n = 1;
-  while (db.prepare("SELECT 1 FROM profiles WHERE username = ?").get(username)) username = `${base}${++n}`;
-  db.prepare("INSERT INTO profiles (user_id, username, display_name, bio, is_public) VALUES (?,?,?,?,0)").run(uid, username, displayName || base, "");
+  while (await get("SELECT 1 as x FROM profiles WHERE username = ?", [username])) username = `${base}${++n}`;
+  await run("INSERT INTO profiles (user_id, username, display_name, bio, is_public) VALUES (?,?,?,?,0)", [uid, username, displayName || base, ""]);
   return uid;
 }
 
 export async function loginUser(email: string, password: string) {
-  const row = getDb().prepare("SELECT id, password_hash FROM users WHERE email = ?").get(email.trim().toLowerCase()) as { id: string; password_hash: string | null } | undefined;
+  const row = await get<{ id: string; password_hash: string | null }>("SELECT id, password_hash FROM users WHERE email = ?", [email.trim().toLowerCase()]);
   if (!row || !row.password_hash) throw new Error("We couldn't find that account, or the password doesn't match.");
   const ok = await bcrypt.compare(password, row.password_hash);
   if (!ok) throw new Error("We couldn't find that account, or the password doesn't match.");

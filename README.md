@@ -32,7 +32,8 @@ The first account registered becomes **admin** (or set `ADMIN_EMAILS`).
 | `AUTH_SECRET` | JWT cookie secret (**set in production**; auto-generated locally into `data/.secret`) |
 | `ADMIN_EMAILS` | comma-separated admin emails |
 | `NEXT_PUBLIC_SITE_URL` | public URL used for share links, sitemap, portfolio |
-| `DATABASE_PATH` | SQLite file (default `data/likhakriti.db`) |
+| `DATABASE_PATH` | local libSQL file (default `data/likhakriti.db`) |
+| `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` | production database (Turso) — required on Vercel |
 
 Secrets are never sent to the browser. `.env*` and `data/` are git-ignored.
 
@@ -81,9 +82,15 @@ Context priority for every AI call: current document → user instruction → vo
 - **Brutal Honesty**, **First Reader**, **Why this line works**, **Keep my imperfections** toggle.
 - Suggestions always render as *Original / Suggestion / Why* with **Accept / Reject / Try again** — nothing is silently replaced; accepted edits snapshot the previous version.
 
+## Deploy to Vercel
+
+1. **Database** — create a free Turso DB: `turso db create likhakriti && turso db show likhakriti --url && turso db tokens create likhakriti` (or via turso.tech dashboard). Tables are created automatically on first request.
+2. **Import the repo** at vercel.com/new (branch `arena/01a0c5c1-likhakriti-ai` or `main` after merge). Framework is auto-detected; `vercel.json` sets the Mumbai region and a 60 s limit for the streaming AI route.
+3. **Environment variables** (Production): `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `AUTH_SECRET` (e.g. `openssl rand -hex 32`), `AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `AI_MODEL=claude-3-5-haiku-latest` (or a Sonnet model), `ADMIN_EMAILS`, `NEXT_PUBLIC_SITE_URL=https://<your-domain>`.
+4. Deploy. Register your account first — it becomes admin.
+
 ## Production notes
-- Set `AUTH_SECRET`, `NEXT_PUBLIC_SITE_URL`, a provider key, and `ADMIN_EMAILS`.
-- SQLite is fine for a single node; for multi-instance deploys swap `src/lib/db.ts` for Postgres (the repo layer only uses `prepare().run/get/all`).
+- libSQL runs as a local file in dev and as Turso in production with the same client; no code changes.
 - OAuth (Google etc.): the session layer is provider-agnostic — add a callback route that creates/finds the user by email and calls `createSession(userId)`.
 - Rate limiting is in-memory; move to Redis for multiple instances.
 - Plans (Free / Creator / Pro / Studio) exist as configuration in the admin dashboard — no prices are set and nothing is paywalled.

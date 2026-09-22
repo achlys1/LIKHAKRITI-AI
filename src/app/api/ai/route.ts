@@ -41,7 +41,7 @@ export async function POST(req: Request) {
   const aiReq: AIRequest = {
     task: d.task, input: d.input, instruction: d.instruction, options: d.options, history: d.history,
     documentTitle: d.documentTitle, userId: user?.id ?? null,
-    voice: user && d.useVoice !== false ? (voice.get(user.id) as unknown as AIRequest["voice"]) : null,
+    voice: user && d.useVoice !== false ? ((await voice.get(user.id)) as unknown as AIRequest["voice"]) : null,
   };
   const ac = new AbortController();
   req.signal.addEventListener("abort", () => ac.abort());

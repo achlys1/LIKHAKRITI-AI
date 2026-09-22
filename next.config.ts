@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["better-sqlite3"],
+  serverExternalPackages: ["@libsql/client", "libsql"],
   allowedDevOrigins: ["*.e2b.app"],
   async rewrites() {
     return [{ source: "/@:username", destination: "/u/:username" }];

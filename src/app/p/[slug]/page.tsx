@@ -6,9 +6,9 @@ import Logo from "@/components/Logo";
 import PostActions from "@/components/PostActions";
 export const dynamic = "force-dynamic";
 type P = { params: Promise<{ slug: string }> };
-export async function generateMetadata({ params }: P): Promise<Metadata> { const { slug } = await params; const d = docs.publicBySlug(slug); if (!d) notFound(); return { title: d.title || "Untitled", description: d.body.slice(0, 150), openGraph: { title: d.title || "Untitled", description: d.body.slice(0, 150), images: d.cover_url ? [d.cover_url] : undefined } }; }
+export async function generateMetadata({ params }: P): Promise<Metadata> { const { slug } = await params; const d = await docs.publicBySlug(slug); if (!d) notFound(); return { title: d.title || "Untitled", description: d.body.slice(0, 150), openGraph: { title: d.title || "Untitled", description: d.body.slice(0, 150), images: d.cover_url ? [d.cover_url] : undefined } }; }
 export default async function Post({ params }: P) {
-  const { slug } = await params; const d = docs.publicBySlug(slug); if (!d) notFound();
+  const { slug } = await params; const d = await docs.publicBySlug(slug); if (!d) notFound();
   const hi = /[\u0900-\u097F]/.test(d.body); const tags: string[] = JSON.parse(d.tags_json || "[]");
   return (
     <main className="min-h-dvh">

@@ -4,8 +4,8 @@ import { detectLanguage, imagesIn, lines, sentences, words } from "./ai/textstat
 
 const STOP = new Set("the a an and or but of to in on at for with is are was were be been it its this that i me my you your we our they them he she his her not no so as if then than from by about into over under out up down do did does have has had will would can could should just like very really main mein mera meri tum tumhara hai hain ho tha thi the ka ki ke ko se par aur bhi toh ye yeh woh wo kya kyun nahi nahin kuch sab ab jab tab yahan wahan है हैं था थी थे का की के को से पर और भी तो ये यह वो वह क्या क्यों नहीं कुछ सब अब जब तब यहाँ वहाँ मैं मेरा मेरी तुम तुम्हारा हम हमारा एक में ने".split(/\s+/));
 
-export function learnVoice(userId: string): VoiceLearned | null {
-  const all = docs.list(userId).filter((d) => d.body.trim().length > 40).slice(0, 60);
+export async function learnVoice(userId: string): Promise<VoiceLearned | null> {
+  const all = (await docs.list(userId)).filter((d) => d.body.trim().length > 40).slice(0, 60);
   if (!all.length) return null;
   const text = all.map((d) => d.body).join("\n\n");
   const sents = sentences(text); const ls = lines(text); const ws = words(text);
@@ -31,6 +31,6 @@ export function learnVoice(userId: string): VoiceLearned | null {
     languages,
     recurringImages,
   };
-  voice.setLearned(userId, learned);
+  await voice.setLearned(userId, learned);
   return learned;
 }
